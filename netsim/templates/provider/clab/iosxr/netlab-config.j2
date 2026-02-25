@@ -1,0 +1,8 @@
+#!/bin/bash
+source /pkg/bin/ztp_helper.sh
+tail -n +2 $1 > config.conf
+xrapply config.conf | tee /tmp/cli-status
+if grep -i error /tmp/cli-status >/dev/null; then
+  echo "Configuration load failed, aborting"
+  exit 1
+fi
