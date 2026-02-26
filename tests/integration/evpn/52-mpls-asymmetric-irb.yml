@@ -1,7 +1,7 @@
 ---
 message: |
   The device under test is a VLAN-to-VXLAN layer-3 switch between two access
-  VLANs and two VXLAN VNIs. Both PE-devices perform inter-VLAN routing,
+  VLANs and EVPN MAC-VRFs. Both PE-devices perform inter-VLAN routing,
   resulting in asymmetrical IRB.
 
   All hosts should be able to ping each other and all switch loopback IPs
@@ -11,7 +11,7 @@ message: |
 
 defaults.sources.extra: [ ../wait_times.yml, ../warnings.yml ]
 
-plugin: [ anycast-check, fix_mtu ]
+plugin: [ fix_mtu, anycast-check ]
 
 groups:
   _auto_create: True
@@ -19,16 +19,24 @@ groups:
     members: [ h1, h2, h3, h4 ]
     device: linux
     provider: clab
-  switches:
+  pe:
     members: [ dut, s2 ]
-    module: [ vlan, vxlan, ospf, bgp, evpn, gateway ]
-  x_switches:
-    members: [ s2 ]
+    module: [ vlan, mpls, ospf, bgp, evpn, gateway ]
+  x_p:
+    members: [ p ]
+    module: [ mpls, ospf ]
     device: frr
     provider: clab
+#  x_pe:
+#    members: [ s2 ]
+#    device: eos
+#    provider: clab
 
 bgp.as: 65000
 gateway.protocol: anycast
+mpls.ldp: True
+evpn.transport: mpls
+evpn.vlans: [ red, blue ]
 
 vlans:
   red:
@@ -41,8 +49,9 @@ vlans:
     gateway: True
 
 links:
-- dut:
-  s2:
+- interfaces: [ dut, p ]
+  mtu: 1600
+- interfaces: [ s2, p ]
   mtu: 1600
 
 validate:
@@ -53,28 +62,23 @@ validate:
   ospf_adj:
     description: Check OSPF adjacencies with DUT
     wait: ospfv2_adj_p2p
-    nodes: [ s2 ]
+    nodes: [ p ]
     wait_msg: Waiting for OSPF adjacency process to complete
     plugin: ospf_neighbor(nodes.dut.ospf.router_id)
 
-  ibgp_adj:
-    description: Check IBGP adjacencies with DUT
-    wait: ibgp_session
-    nodes: [ s2 ]
-    wait_msg: Waiting for IGBP session
-    plugin: bgp_neighbor(node.bgp.neighbors,'dut')
-
-  ipv4_af:
-    description: Check IPv4 AF on IBGP adjacencies with DUT
-    nodes: [ s2 ]
-    plugin: bgp_neighbor(node.bgp.neighbors,'dut',activate='ipv4')
-
-  evpn_af:
-    description: Check EVPN AF on IBGP adjacencies with DUT
-    nodes: [ s2 ]
-    plugin: bgp_neighbor(node.bgp.neighbors,'dut',activate='evpn')
-    stop_on_error: True
-
+#  ibgp_adj:
+#    description: Check IBGP adjacencies with DUT
+#    wait: ibgp_session
+#    nodes: [ s2 ]
+#    wait_msg: Waiting for IBGP session
+#    plugin: bgp_neighbor(node.bgp.neighbors,'dut')
+#
+#  evpn_af:
+#    description: Check EVPN AF on IBGP adjacencies with DUT
+#    nodes: [ s2 ]
+#    plugin: bgp_neighbor(node.bgp.neighbors,'dut',activate='evpn')
+#    stop_on_error: True
+#
   ping_gw_red:
     description: Pinging default gateway in red VLAN
     nodes: [ h1, h2 ]
